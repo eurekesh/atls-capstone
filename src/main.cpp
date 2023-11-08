@@ -3,6 +3,11 @@
 // librays for the transmitter/receiver
 #include <SPI.h>
 
+#define NORTH 0
+#define EAST 1
+#define SOUTH 2
+#define WEST 3 
+
 // declares all the motors
 AF_DCMotor motor1(1); 
 AF_DCMotor motor2(2);
@@ -20,6 +25,7 @@ int speed = 255;
 
 int grid[6][6] = {{0}};
 int curr_position[2] = {3,3};
+int curr_direction = NORTH;
 
 void allWheels(int);
 void leftTurn(int);
@@ -41,10 +47,9 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  // allWheels(100);
+  // allWheels(500);
   
 }
-
 
 void allWheels(int speed)
 {
