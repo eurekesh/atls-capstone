@@ -14,6 +14,7 @@
 #define CHECK_INTERVAL 1000
 #define RIGHT_TURN_TIME 1100
 #define LEFT_TURN_TIME 900
+#define FORWARD_TIME 1000
 
 #define WHEEL_SPEED 255
 
@@ -35,7 +36,6 @@ int grid[5][5] = {{0,0,0,0,0},
                   
 int curr_position[2] = {2,2};
 int curr_direction = NORTH;
-static unsigned long lastRefreshTime = 0;
 
 void allWheelForward();
 void leftTurn();
@@ -43,7 +43,9 @@ void rightTurn();
 void updatePosition();
 bool checkPosition();
 bool isAboutToBeOutOfBounds();
-bool canTurnDirection();
+bool canTurnCurrentDirection();
+void printPositionAndDirection();
+
 
 void setup() {
   Serial.begin(9600);
@@ -55,7 +57,10 @@ void setup() {
 }
 
 void loop() {
+  static unsigned long lastRefreshTime = 0;
+
 	allWheelForward();
+  printPositionAndDirection();
   
 	if(millis() - lastRefreshTime >= CHECK_INTERVAL)
 	{
@@ -65,7 +70,7 @@ void loop() {
     {
       if (curr_position[1] == 0 || curr_position[1] == 4) // we're also at an edge
       {
-        if (!canTurnDirection())
+        if (!canTurnCurrentDirection())
         {
           if (upcomingTurnDirection == LEFT)
           {
@@ -86,7 +91,11 @@ void loop() {
         {
           leftTurn();
           allWheelForward();
+          leftTurn();
+          allWheelForward();
         } else if (upcomingTurnDirection == RIGHT) {
+          rightTurn();
+          allWheelForward();
           rightTurn();
           allWheelForward();
         }
@@ -94,11 +103,10 @@ void loop() {
       }
     }
   }
-  allWheelForward();
 
 }
 
-bool canTurnDirection()
+bool canTurnCurrentDirection()
 {
   if (upcomingTurnDirection == RIGHT)
   {
@@ -164,10 +172,17 @@ bool isAboutToBeOutOfBounds() {
 void allWheelForward()
 {
   updatePosition();
-  for(int i = 0; i < 4; i++)
+  unsigned long turning_time = FORWARD_TIME;
+  unsigned long start_time = millis();
+  unsigned long finish_time = start_time + turning_time;
+
+  while (millis() < finish_time)
   {
-    all_wheels[i].setSpeed(WHEEL_SPEED);
-    all_wheels[i].run(FORWARD);
+    for(int i = 0; i < 4; i++)
+    {
+      all_wheels[i].setSpeed(WHEEL_SPEED);
+      all_wheels[i].run(FORWARD);
+    }
   }
   for(int i = 0; i < 4; i++)
   {
@@ -205,7 +220,6 @@ void leftTurn()
     all_wheels[i].setSpeed(0);
     all_wheels[i].run(BRAKE);
   }
-  updatePosition();
   delay(2000);
 }
 
@@ -231,4 +245,30 @@ void rightTurn()
     all_wheels[i].run(BRAKE);
   }
   delay(2000);
+}
+
+void printPositionAndDirection() {
+  Serial.print("Current position: ");
+  Serial.print(curr_position[0]);
+  Serial.print(", ");
+  Serial.print(curr_position[1]);
+  Serial.print(" | Current direction: ");
+
+  switch(curr_direction) {
+    case NORTH:
+      Serial.println("NORTH");
+      break;
+    case EAST:
+      Serial.println("EAST");
+      break;
+    case SOUTH:
+      Serial.println("SOUTH");
+      break;
+    case WEST:
+      Serial.println("WEST");
+      break;
+    default:
+      Serial.println("UNKNOWN");
+      break;
+  }
 }
