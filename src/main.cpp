@@ -8,6 +8,15 @@
 #define SOUTH 2
 #define WEST 3 
 
+#define RIGHT 0
+#define LEFT 1
+
+#define CHECK_INTERVAL 1000
+#define RIGHT_TURN_TIME 1100
+#define LEFT_TURN_TIME 900
+
+#define WHEEL_SPEED 255
+
 // declares all the motors
 AF_DCMotor motor1(1); 
 AF_DCMotor motor2(2);
@@ -15,75 +24,211 @@ AF_DCMotor motor3(3);
 AF_DCMotor motor4(4);
 AF_DCMotor all_wheels[] = {motor1, motor2, motor3, motor4};
 
-// int Xpot;
-// int Ypot;
+bool upcomingTurnDirection = RIGHT;
 
-// sets the pins for the radio
-
-// sets the max speed and the joystick values
-int speed = 255;
-
-int grid[6][6] = {{0}};
-int curr_position[2] = {3,3};
+int grid[5][5] = {{0,0,0,0,0},
+                  {0,0,0,0,0},
+                  {0,0,0,0,0},
+                  {0,0,0,0,0},
+                  {0,0,0,0,0}
+                  };
+                  
+int curr_position[2] = {2,2};
 int curr_direction = NORTH;
+static unsigned long lastRefreshTime = 0;
 
-void allWheels(int);
-void leftTurn(int);
-void rightTurn(int);
+void allWheelForward();
+void leftTurn();
+void rightTurn();
+void updatePosition();
+bool checkPosition();
+bool isAboutToBeOutOfBounds();
+bool canTurnDirection();
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
 
-  // the motors will be stopped
   motor1.setSpeed(0);  
   motor2.setSpeed(0);
   motor3.setSpeed(0);
   motor4.setSpeed(0);
 }
 
-// might need an update function for joystick, example can be found in Lab 4 Part 5
-
 void loop() {
-  // put your main code here, to run repeatedly:
-
-  // allWheels(500);
+	allWheelForward();
   
-}
+	if(millis() - lastRefreshTime >= CHECK_INTERVAL)
+	{
+		lastRefreshTime += CHECK_INTERVAL;
 
-void allWheels(int speed)
-{
-  for(int i = 0; i < 4; i++)
-  {
-    all_wheels[i].setSpeed(speed);
-    all_wheels[i].run(FORWARD);
-  }
-}
-
-void leftTurn(int speed)
-{
-  for(int i = 0; i < 4; i++)
-  {
-    int using_speed = speed;
-    if (i < 2)
+    if(curr_position[0] == 0 || curr_position[0] == 4) // we're at the top or bottom of the grid
     {
-      using_speed /= 3;
+      if (curr_position[1] == 0 || curr_position[1] == 4) // we're also at an edge
+      {
+        if (!canTurnDirection())
+        {
+          if (upcomingTurnDirection == LEFT)
+          {
+            rightTurn();
+            allWheelForward();
+            rightTurn();
+            allWheelForward();
+          } else if (upcomingTurnDirection == RIGHT) {
+            leftTurn();
+            allWheelForward();
+            leftTurn();
+            allWheelForward();
+          }
+        }
+      } else {
+
+        if (upcomingTurnDirection == LEFT)
+        {
+          leftTurn();
+          allWheelForward();
+        } else if (upcomingTurnDirection == RIGHT) {
+          rightTurn();
+          allWheelForward();
+        }
+        upcomingTurnDirection = !upcomingTurnDirection;
+      }
     }
-    all_wheels[i].setSpeed(using_speed);
-    all_wheels[i].run(FORWARD);
+  }
+  allWheelForward();
+
+}
+
+bool canTurnDirection()
+{
+  if (upcomingTurnDirection == RIGHT)
+  {
+    if (curr_direction == NORTH)
+    {
+      return curr_position[1] != 4;
+    }
+    else if (curr_direction == SOUTH)
+    {
+      return curr_position[1] != 0;
+    }
+  }
+  else if (upcomingTurnDirection == LEFT)
+  {
+    if (curr_direction == NORTH)
+    {
+      return curr_position[1] != 0;
+    }
+    else if (curr_direction == SOUTH)
+    {
+      return curr_position[1] != 4;
+    }
+  }
+  return false;
+}
+
+void updatePosition()
+{
+  switch (curr_direction)
+  {
+    case NORTH:
+      curr_position[0]--;
+      break;
+    case EAST:
+      curr_position[1]++;
+      break;
+    case SOUTH:
+      curr_position[0]++;
+      break;
+    case WEST:
+      curr_position[1]--;
+      break;
   }
 }
 
-void rightTurn(int speed)
+bool isAboutToBeOutOfBounds() {
+  int x = curr_position[0];
+  int y = curr_position[1];
+  switch (curr_direction) {
+    case NORTH:
+      return x == 1;
+    case EAST:
+      return y == 4;
+    case SOUTH:
+      return x == 4;
+    case WEST:
+      return y == 1;
+    default:
+      return false;
+  }
+}
+
+void allWheelForward()
 {
+  updatePosition();
   for(int i = 0; i < 4; i++)
   {
-    int using_speed = speed;
-    if (i > 2)
-    {
-      using_speed /= 3;
-    }
-    all_wheels[i].setSpeed(using_speed);
+    all_wheels[i].setSpeed(WHEEL_SPEED);
     all_wheels[i].run(FORWARD);
   }
+  for(int i = 0; i < 4; i++)
+  {
+    all_wheels[i].setSpeed(0);
+    all_wheels[i].run(BRAKE);
+  }
+  delay(2000);
+}
+
+void leftTurn()
+{
+  if (curr_direction == NORTH)
+  {
+    curr_direction = WEST;
+  }
+  else
+  {
+    curr_direction--;
+  }
+
+  unsigned long turning_time = LEFT_TURN_TIME;
+  unsigned long start_time = millis();
+  unsigned long finish_time = start_time + turning_time;
+
+  while (millis() < finish_time)
+  {
+    for(int i = 0; i < 4; i++)
+    {
+      all_wheels[i].setSpeed(WHEEL_SPEED);
+      all_wheels[i].run(i < 2 ? FORWARD : BACKWARD);
+    }
+  }
+  for(int i = 0; i < 4; i++)
+  {
+    all_wheels[i].setSpeed(0);
+    all_wheels[i].run(BRAKE);
+  }
+  updatePosition();
+  delay(2000);
+}
+
+void rightTurn()
+{
+  curr_direction = (curr_direction + 1) % 4;
+
+  unsigned long turning_time = RIGHT_TURN_TIME;
+  unsigned long start_time = millis();
+  unsigned long finish_time = start_time + turning_time;
+
+  while (millis() < finish_time)
+  {
+    for(int i = 0; i < 4; i++)
+    {
+      all_wheels[i].setSpeed(WHEEL_SPEED);
+      all_wheels[i].run(i > 2 ? FORWARD : BACKWARD);
+    }
+  }
+  for(int i = 0; i < 4; i++)
+  {
+    all_wheels[i].setSpeed(0);
+    all_wheels[i].run(BRAKE);
+  }
+  delay(2000);
 }
